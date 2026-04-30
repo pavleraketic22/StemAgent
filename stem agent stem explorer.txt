@@ -1,0 +1,16 @@
+stem-agent/
+├── stem/
+│   ├── explorer.py       
+│   ├── architect.py      
+│   ├── builder.py        
+│   ├── evaluator.py      
+│   └── stop_condition.py 
+├── agents/
+│   ├── agent.py
+│   └── agent_config.json  
+├── eval/
+│   ├── benchmark.py      
+│   └── results/          
+├── main.py
+└── README.md
+

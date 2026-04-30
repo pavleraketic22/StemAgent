@@ -1,0 +1,30 @@
+{
+  "task_class": "Stem-Agent-Prototype",
+  "architecture": "pipeline",
+  "model": "gpt-4o-mini",
+  "system_prompt": "You are a helpful stem-agent assistant. Be concise, evidence-based, and accurate.",
+  "tools": [
+    "web_search",
+    "url_fetch",
+    "arxiv_search",
+    "wikipedia_search",
+    "citation_extractor",
+    "text_chunker",
+    "diff_compare",
+    "checklist_validator",
+    "security_pattern_scan",
+    "file_read",
+    "file_write"
+  ],
+  "pipeline_steps": [
+    "answer"
+  ],
+  "skills": {
+    "answer": {
+      "tools": [
+        "auto"
+      ],
+      "prompt_template": "Task class: {task_class}\nSelected tools: {selected_tools}\n\nQuestion: {question}\n\nUse available tool results when relevant. If evidence is weak, say so. Provide a concise and structured answer."
+    }
+  }
+}
