@@ -5,6 +5,7 @@ import shutil
 
 from agents.agent import Agent
 from eval.benchmark_runner import BenchmarkRunner
+from eval.benchmark_data import BENCHMARK_CASES
 from specialization.pipeline import SpecializationPipeline
 
 
@@ -40,10 +41,15 @@ def _reset_live_config_to_stem(stem: Path, live: Path) -> None:
         shutil.copy2(stem, live)
 
 
-def _chat_loop(task_class: str, config_path: str) -> bool:
+def _chat_loop(
+    task_class: str,
+    config_path: str,
+    baseline_config_path: str | None = None,
+    domain_filter: str | None = None,
+) -> bool:
     """Returns True if app should exit, False to go back."""
     agent = Agent(config_path)
-    print("\nYou can now ask multiple questions. Commands: /back, /exit")
+    print("\nYou can now ask multiple questions. Commands: /back, /exit, /benchmark")
     while True:
         query = input("Query: ").strip()
         if not query:
@@ -53,6 +59,32 @@ def _chat_loop(task_class: str, config_path: str) -> bool:
             return False
         if query.lower() == "/exit":
             return True
+        if query.lower() == "/benchmark":
+            # Filter cases by domain if specified
+            if domain_filter:
+                filtered_cases = [c for c in BENCHMARK_CASES if c.domain == domain_filter]
+            else:
+                filtered_cases = None
+            
+            if baseline_config_path:
+                runner = BenchmarkRunner(
+                    config_path=config_path,
+                    baseline_config_path=baseline_config_path,
+                )
+            else:
+                runner = BenchmarkRunner(config_path=config_path)
+            
+            bench = runner.run(cases=filtered_cases)
+            print(f"\n=== Benchmark Results ({domain_filter or 'All domains'}) ===")
+            print(f"Specialized avg: {bench.specialized_average_total:.2f}/25")
+            print(f"Baseline avg: {bench.baseline_average_total:.2f}/25")
+            print(f"Delta: {bench.delta_total:+.2f}")
+            print(f"Win rate: {bench.comparative_win_rate:.3f} (std: {bench.comparative_win_rate_std:.3f})")
+            print("\nBy difficulty:")
+            for diff, score in bench.specialized_by_difficulty.items():
+                print(f"  {diff}: {score:.2f}/25")
+            print()
+            continue
 
         result = agent.run(question=query, task_class=task_class)
         print(f"\nTask class: {result['task_class']}")
@@ -77,35 +109,20 @@ def main() -> None:
 
             task_class = _normalize_task_class(raw_task)
             mode = _normalize_mode(
-                input("Mode (execute/specialize/evolve/benchmark) [execute]: ") or "execute"
+                input("Mode (execute/specialize) [execute]: ") or "execute"
             )
-
-            if mode == "benchmark":
-                runner = BenchmarkRunner(config_path=str(stem_path))
-                bench = runner.run()
-                print("\nBenchmark complete.")
-                print(f"Baseline avg total: {bench.baseline_average_total:.2f}/25")
-                print(f"Specialized avg total: {bench.specialized_average_total:.2f}/25")
-                print(f"Delta total: {bench.delta_total:+.2f}")
-                print(f"Comparative win rate: {bench.comparative_win_rate:.3f}")
-                print("Baseline by domain:")
-                for domain, score in bench.baseline_by_domain.items():
-                    print(f"- {domain}: {score:.2f}/25")
-                print("Specialized by domain:")
-                for domain, score in bench.specialized_by_domain.items():
-                    print(f"- {domain}: {score:.2f}/25")
-                print("Specialized by difficulty:")
-                for difficulty, score in bench.specialized_by_difficulty.items():
-                    print(f"- {difficulty}: {score:.2f}/25")
-                continue
-
             question = input("Enter question: ").strip()
             if not question:
                 print("Question is required for this mode.")
                 continue
 
             if mode == "execute":
-                should_exit = _chat_loop(task_class=task_class, config_path=str(stem_path))
+                should_exit = _chat_loop(
+                    task_class=task_class,
+                    config_path=str(stem_path),
+                    baseline_config_path=str(stem_path),
+                    domain_filter=task_class,
+                )
                 if should_exit:
                     break
                 continue
@@ -133,38 +150,12 @@ def main() -> None:
                 initial_result = initial_agent.run(question=question, task_class=task_class)
                 print(f"\nAnswer:\n{initial_result['answer']}\n")
 
-                should_exit = _chat_loop(task_class=task_class, config_path=str(session_config_path))
-                if should_exit:
-                    break
-
-                pipeline.cleanup_session(session_dir)
-                active_session_dirs = [d for d in active_session_dirs if d != session_dir]
-                continue
-
-            if mode == "evolve":
-                evolution_result = pipeline.evolve(
+                should_exit = _chat_loop(
                     task_class=task_class,
-                    dry_question=question,
-                    max_iterations=3,
-                    stop_threshold=0.78,
-                    config_path=session_config_path,
-                    skills_dir=session_skills_dir,
+                    config_path=str(session_config_path),
+                    baseline_config_path=str(stem_path),
+                    domain_filter=task_class,
                 )
-                print("\nEvolution complete.")
-                print(f"Best iteration: {evolution_result['best_iteration']}")
-                print(f"Best score: {evolution_result['best_score']:.3f}")
-                before_avg = evolution_result["before_benchmark"]["specialized_average_total"]
-                after_avg = evolution_result["after_benchmark"]["specialized_average_total"]
-                print(f"Before benchmark avg: {before_avg:.2f}/25")
-                print(f"After benchmark avg: {after_avg:.2f}/25")
-                print(f"Report: {evolution_result['report_path']}")
-
-                print("\nInitial answer on your query:")
-                initial_agent = Agent(str(session_config_path))
-                initial_result = initial_agent.run(question=question, task_class=task_class)
-                print(f"\nAnswer:\n{initial_result['answer']}\n")
-
-                should_exit = _chat_loop(task_class=task_class, config_path=str(session_config_path))
                 if should_exit:
                     break
 

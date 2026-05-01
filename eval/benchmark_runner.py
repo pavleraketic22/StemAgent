@@ -4,7 +4,7 @@ import json
 import os
 import random
 from dataclasses import asdict, dataclass
-from statistics import mean
+from statistics import mean, median, stdev
 from typing import Any
 
 from dotenv import load_dotenv
@@ -65,9 +65,15 @@ class CaseResult:
     specialized_total: float
     delta_total: float
     comparative_label: str
-    comparative_win: bool
+    comparative_win_rate: float  # Changed from comparative_win: bool
     baseline_scores: dict[str, Any]
     specialized_scores: dict[str, Any]
+    baseline_keyword_score: float = 0.0  # NEW
+    specialized_keyword_score: float = 0.0  # NEW
+    baseline_llm_score: float = 0.0  # NEW (raw rubric score)
+    specialized_llm_score: float = 0.0  # NEW (raw rubric score)
+    baseline_judge_variance: float = 0.0  # NEW (std dev across 3 judge runs)
+    specialized_judge_variance: float = 0.0  # NEW
 
 
 @dataclass
@@ -76,6 +82,7 @@ class BenchmarkResult:
     specialized_average_total: float
     delta_total: float
     comparative_win_rate: float
+    comparative_win_rate_std: float  # NEW: variance across cases
     baseline_by_difficulty: dict[str, float]
     specialized_by_difficulty: dict[str, float]
     baseline_by_domain: dict[str, float]
@@ -88,7 +95,7 @@ class BenchmarkRunner:
         self,
         config_path: str = "agents/agent_config.json",
         baseline_config_path: str = "agents/agent_config.stem.json",
-        answer_model: str = "gpt-4o-mini",
+        answer_model: str = "gpt-4o",
         judge_model: str = "gpt-4o",
     ) -> None:
         load_dotenv()
@@ -113,25 +120,33 @@ class BenchmarkRunner:
             specialized_response = specialized_agent.run(question=case.question, task_class=case.domain)
             specialized_answer = str(specialized_response.get("answer", ""))
 
-            baseline_scores = self._judge_response(
+            # Ensemble judge: 3 runs with median aggregation
+            baseline_judgment = self._judge_with_ensemble(
                 case=case,
                 response_text=baseline_answer,
             )
-            specialized_scores = self._judge_response(
+            specialized_judgment = self._judge_with_ensemble(
                 case=case,
                 response_text=specialized_answer,
             )
 
-            comparative_label = self._comparative_judge(
+            # Keyword scoring (objective signal)
+            baseline_keyword = self._keyword_score(baseline_answer, case.required_keywords)
+            specialized_keyword = self._keyword_score(specialized_answer, case.required_keywords)
+
+            # Combine: 70% LLM score + 30% keyword score
+            baseline_llm = baseline_judgment["total"]
+            specialized_llm = specialized_judgment["total"]
+            baseline_total = 0.7 * baseline_llm + 0.3 * baseline_keyword * 25  # Scale to max 25
+            specialized_total = 0.7 * specialized_llm + 0.3 * specialized_keyword * 25
+
+            # Multi-run comparative: 3 runs for stable win rate
+            comparative_label, comparative_win_rate = self._comparative_judge_multi(
                 question=case.question,
                 baseline_answer=baseline_answer,
                 specialized_answer=specialized_answer,
                 domain=case.domain,
             )
-            comparative_win = comparative_label == "SPECIALIZED"
-
-            baseline_total = float(baseline_scores["total"])
-            specialized_total = float(specialized_scores["total"])
 
             results.append(
                 CaseResult(
@@ -142,15 +157,23 @@ class BenchmarkRunner:
                     specialized_total=specialized_total,
                     delta_total=specialized_total - baseline_total,
                     comparative_label=comparative_label,
-                    comparative_win=comparative_win,
-                    baseline_scores=baseline_scores,
-                    specialized_scores=specialized_scores,
+                    comparative_win_rate=comparative_win_rate,
+                    baseline_scores=baseline_judgment,
+                    specialized_scores=specialized_judgment,
+                    baseline_keyword_score=baseline_keyword,
+                    specialized_keyword_score=specialized_keyword,
+                    baseline_llm_score=baseline_llm,
+                    specialized_llm_score=specialized_llm,
+                    baseline_judge_variance=baseline_judgment.get("variance", 0.0),
+                    specialized_judge_variance=specialized_judgment.get("variance", 0.0),
                 )
             )
 
         baseline_avg = mean([r.baseline_total for r in results]) if results else 0.0
         specialized_avg = mean([r.specialized_total for r in results]) if results else 0.0
-        win_rate = mean([1.0 if r.comparative_win else 0.0 for r in results]) if results else 0.0
+        win_rates = [r.comparative_win_rate for r in results]
+        win_rate = mean(win_rates) if win_rates else 0.0
+        win_rate_std = stdev(win_rates) if len(win_rates) > 1 else 0.0
 
         baseline_by_difficulty = self._aggregate_by(results, key="difficulty", value="baseline_total")
         specialized_by_difficulty = self._aggregate_by(
@@ -164,6 +187,7 @@ class BenchmarkRunner:
             specialized_average_total=specialized_avg,
             delta_total=specialized_avg - baseline_avg,
             comparative_win_rate=win_rate,
+            comparative_win_rate_std=win_rate_std,
             baseline_by_difficulty=baseline_by_difficulty,
             specialized_by_difficulty=specialized_by_difficulty,
             baseline_by_domain=baseline_by_domain,
@@ -223,6 +247,81 @@ class BenchmarkRunner:
 
         normalized["total"] = total
         return normalized
+
+    def _judge_with_ensemble(self, *, case: BenchmarkCase, response_text: str) -> dict[str, Any]:
+        """Run judge 3 times and aggregate with median for stability."""
+        runs = [
+            self._judge_response(case=case, response_text=response_text)
+            for _ in range(3)
+        ]
+
+        # Aggregate each dimension with median
+        expected_keys = self._rubric_for_domain(case.domain)[1]
+        aggregated: dict[str, Any] = {}
+        dimension_scores: list[list[int]] = [[] for _ in expected_keys]
+
+        for run in runs:
+            for i, key in enumerate(expected_keys):
+                dimension_scores[i].append(run.get(key, 1))
+
+        for i, key in enumerate(expected_keys):
+            aggregated[key] = median(dimension_scores[i])
+
+        # Calculate variance across runs for stability metric
+        totals = [run["total"] for run in runs]
+        aggregated["variance"] = stdev(totals) if len(totals) > 1 else 0.0
+
+        # Use median of totals
+        aggregated["total"] = median(totals)
+        aggregated["reasoning"] = runs[0].get("reasoning", "")
+
+        return aggregated
+
+    def _keyword_score(self, response: str, keywords: tuple[str, ...]) -> float:
+        """Calculate objective keyword match score (0-1)."""
+        if not keywords:
+            return 0.5  # Default if no keywords defined
+
+        response_lower = response.lower()
+        hits = sum(1 for kw in keywords if kw.lower() in response_lower)
+        return hits / len(keywords)
+
+    def _comparative_judge_multi(
+        self,
+        *,
+        question: str,
+        baseline_answer: str,
+        specialized_answer: str,
+        domain: str,
+    ) -> tuple[str, float]:
+        """Run comparative judge 3 times and return win rate."""
+        wins = 0
+        ties = 0
+
+        for _ in range(3):
+            result = self._comparative_judge(
+                question=question,
+                baseline_answer=baseline_answer,
+                specialized_answer=specialized_answer,
+                domain=domain,
+            )
+            if result == "SPECIALIZED":
+                wins += 1
+            elif result == "TIE":
+                ties += 1
+
+        total_runs = 3
+        win_rate = wins / total_runs
+
+        # Determine label based on win rate
+        if win_rate > 0.5:
+            label = "SPECIALIZED"
+        elif win_rate < 0.33:
+            label = "BASELINE"
+        else:
+            label = "TIE"
+
+        return label, win_rate
 
     def _comparative_judge(
         self,
@@ -336,6 +435,7 @@ def to_dict(result: BenchmarkResult) -> dict[str, Any]:
         "specialized_average_total": result.specialized_average_total,
         "delta_total": result.delta_total,
         "comparative_win_rate": result.comparative_win_rate,
+        "comparative_win_rate_std": result.comparative_win_rate_std,
         "baseline_by_difficulty": result.baseline_by_difficulty,
         "specialized_by_difficulty": result.specialized_by_difficulty,
         "baseline_by_domain": result.baseline_by_domain,
