@@ -137,13 +137,17 @@ def main() -> None:
                     config_path=session_config_path,
                     skills_dir=session_skills_dir,
                 )
-                eval_payload = specialization_result["evaluation"]
-                print("\nSpecialization complete.")
-                print(f"Score: {eval_payload['score']:.2f}")
-                print(f"Should stop: {eval_payload['should_stop']}")
-                print("Reasons:")
-                for reason in eval_payload["reasons"]:
-                    print(f"- {reason}")
+                print(f"\nSpecialization complete.")
+                print(f"Total iterations: {specialization_result['total_iterations']}")
+                print(f"Best score: {specialization_result['best_score']:.3f}")
+                
+                # Show iteration history
+                print("\nIteration history:")
+                for entry in specialization_result["history"]:
+                    iter_num = entry["iteration"]
+                    score = entry["evaluation"]["score"]
+                    should_stop = entry["evaluation"]["should_stop"]
+                    print(f"  {iter_num}: score={score:.3f}, stop={should_stop}")
 
                 print("\nInitial answer on your query:")
                 initial_agent = Agent(str(session_config_path))

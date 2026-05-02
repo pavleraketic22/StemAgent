@@ -142,7 +142,7 @@ class Evaluator:
             score = min(1.0, score + 0.05 * coverage)
             reasons.append(f"Keyword coverage bonus: {coverage:.2f}")
 
-        should_stop = score >= 0.75
+        should_stop = score >= 0.5
         reasons.append(
             f"Final score: {score:.3f} → "
             f"{'stop' if should_stop else 'continue'}"

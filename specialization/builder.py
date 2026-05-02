@@ -113,13 +113,27 @@ class Builder:
         }
         self.write_config(config, config_path=config_path)
 
-    def read_current_config(self, config_path: Path | None = None) -> dict:
-        path = (config_path or self.config_path).resolve()
+    def read_current_config(self, config_path: Path | str | None = None) -> dict:
+        if config_path is None:
+            path = self.config_path
+        elif isinstance(config_path, str):
+            path = Path(config_path)
+        else:
+            path = config_path
+        
+        path = path.resolve()
         if not path.exists():
             return {}
         return json.loads(path.read_text(encoding="utf-8"))
 
-    def write_config(self, config: dict, config_path: Path | None = None) -> None:
-        path = (config_path or self.config_path).resolve()
+    def write_config(self, config: dict, config_path: Path | str | None = None) -> None:
+        if config_path is None:
+            path = self.config_path
+        elif isinstance(config_path, str):
+            path = Path(config_path)
+        else:
+            path = config_path
+        
+        path = path.resolve()
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")

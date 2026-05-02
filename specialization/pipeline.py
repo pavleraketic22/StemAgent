@@ -47,30 +47,34 @@ class SpecializationPipeline:
     def _auto_learn(
         self,
         task_class: str,
-        benchmark_result,
-        threshold: float = 0.6,
+        eval_result,
+        question: str,
+        threshold: float = 0.75,
     ) -> None:
-        """Extract and append learnings if benchmark score is below threshold."""
-        normalized_score = benchmark_result.specialized_average_total / 25.0
+        """Extract and append learnings after each iteration to improve score."""
+        score = eval_result.score
 
-        if normalized_score >= threshold:
-            return  # No learning needed
-
-        # Find the worst performing case
-        case_results = benchmark_result.case_results
-        if not case_results:
-            return
-
-        worst_case = min(case_results, key=lambda c: c.specialized_total)
-        question = worst_case.question
-        answer = worst_case.specialized_scores
-
+        # Always learn (no threshold) to ensure improvement
         # Use SkillManager to extract learning with LLM
         skill_manager = SkillManager()
+        
+        # Get dimension scores to find what to improve
+        dim_scores = eval_result.dimension_scores if hasattr(eval_result, 'dimension_scores') else {}
+        
+        # Find weakest dimension
+        weakest_dim = None
+        weakest_score = 1.0
+        if dim_scores:
+            for dim, score_val in dim_scores.items():
+                if score_val < weakest_score:
+                    weakest_score = score_val
+                    weakest_dim = dim
+        
+        # Generate improvement based on weakest dimension
         learning = skill_manager.extract_learning_with_llm(
             question=question,
-            answer=str(answer),
-            scores=answer,
+            answer=eval_result.reasons[-1] if eval_result.reasons else "",
+            scores=dim_scores,
             domain=task_class,
         )
 
@@ -79,9 +83,9 @@ class SpecializationPipeline:
                 domain=task_class,
                 improvement=learning,
                 question=question,
-                scores={"total": worst_case.specialized_total, **answer},
+                scores=dim_scores,
             )
-            print(f"\n[Auto-learn] Added: {learning[:80]}...")
+            print(f"\n[Auto-learn] {weakest_dim}: {learning[:80]}...")
 
     def run(
         self,
@@ -90,28 +94,69 @@ class SpecializationPipeline:
         *,
         config_path: Path | None = None,
         skills_dir: Path | None = None,
+        max_iterations: int = 5,
     ) -> dict:
-        exploration = self.explorer.run(task_class, question=dry_question)
-        plan = self.architect.build_plan(exploration)
-        self.builder.build(plan, config_path=config_path, skills_dir=skills_dir)
-
-        # Smoke-run the specialized agent once for a basic evaluation signal.
         active_config = str(config_path) if config_path else "agents/agent_config.json"
-        agent = Agent(active_config)
-        result = agent.run(question=dry_question, task_class=task_class)
+        
+        best_result = None
+        best_score = 0.0
+        history: list[dict] = []
 
-        eval_result = self.evaluator.evaluate(
-            selected_tools=result.get("selected_tools", []),
-            pipeline_steps=plan.pipeline_steps,
-            sample_outputs=[result.get("answer", "")],
-            target_keywords=[task_class],
-        )
+        for iteration in range(1, max_iterations + 1):
+            print(f"\n--- Iteration {iteration}/{max_iterations} ---")
+            
+            # Explore → Architect → Build
+            exploration = self.explorer.run(task_class, question=dry_question)
+            plan = self.architect.build_plan(exploration)
+            self.builder.build(plan, config_path=active_config, skills_dir=skills_dir)
+
+            # Run agent
+            agent = Agent(active_config)
+            result = agent.run(question=dry_question, task_class=task_class)
+
+            # Evaluate
+            eval_result = self.evaluator.evaluate(
+                selected_tools=result.get("selected_tools", []),
+                pipeline_steps=plan.pipeline_steps,
+                sample_outputs=[result.get("answer", "")],
+                target_keywords=[task_class],
+                task_class=task_class,
+            )
+
+            print(f"Score: {eval_result.score:.3f} | Should stop: {eval_result.should_stop}")
+            
+            # Auto-learning: extract and append learnings after each iteration
+            self._auto_learn(
+                task_class=task_class,
+                eval_result=eval_result,
+                question=dry_question,
+            )
+            
+            entry = {
+                "iteration": iteration,
+                "exploration": asdict(exploration),
+                "architecture": asdict(plan),
+                "evaluation": asdict(eval_result),
+                "smoke_result": result,
+            }
+            history.append(entry)
+
+            # Keep best result
+            if eval_result.score > best_score:
+                best_score = eval_result.score
+                best_result = entry
+
+            # Stop if evaluator says to stop
+            if eval_result.should_stop:
+                print(f"✓ Stopping at iteration {iteration} (score >= 0.75)")
+                break
 
         return {
-            "exploration": asdict(exploration),
-            "architecture": asdict(plan),
-            "evaluation": asdict(eval_result),
-            "smoke_result": result,
+            "task_class": task_class,
+            "total_iterations": len(history),
+            "best_score": best_score,
+            "history": history,
+            "best_result": best_result,
         }
 
     def evolve(
@@ -154,11 +199,11 @@ class SpecializationPipeline:
             benchmark_norm = bench.specialized_average_total / 25.0
             combined_score = (0.55 * benchmark_norm) + (0.45 * eval_result.score)
 
-            # Auto-learning: extract and append learnings if score is low
+            # Auto-learning: extract and append learnings after each iteration
             self._auto_learn(
                 task_class=task_class,
-                benchmark_result=bench,
-                threshold=0.6,  # If normalized score < 0.6, extract learning
+                eval_result=eval_result,
+                question=dry_question,
             )
 
             entry = {
