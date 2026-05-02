@@ -1,8 +1,6 @@
 # NOTES
 **I will be writing my thoughts here while doing this task**
 
-**_28/04/2026_**
-
 My initial idea is to have agent.py file in which Agent as a class is defined and initialized. 
 
 When running main.py, we give task class after which the pipeline is run : explorer -> architect -> (skill_)builder -> stop_condition -> evaluator.
@@ -36,7 +34,6 @@ So idea is:
 - evaluator evaluates
 - and then we have specialized agent !!! 
 
-**_29/04/2026_**
 
 The biggest problem i currently have is to make it possible for a aigent to change its structure while in runtime
 
@@ -56,4 +53,4 @@ The options I have rn are:
 - LLM judge
 - citation score
 
-As for the skills builder, I've tried manual aor rather handcrafted prompts but it just doesn't work. I will probably have to go with a more dynamic approach where the agent writes the skill.md file on its own without any hardcoded structure.
+As for the skills builder, I've tried manual or rather handcrafted prompts but it just doesn't work. I will probably have to go with a more dynamic approach where the agent writes the skill.md file on its own without any hardcoded structure.

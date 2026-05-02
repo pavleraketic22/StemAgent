@@ -24,7 +24,7 @@ def _get_skill_manager():
     global _SkillManager
     if _SkillManager is None:
         try:
-            from agents.skills.skill_manager import SkillManager
+            from specialization.skill_manager import SkillManager
             _SkillManager = SkillManager
         except Exception:
             pass

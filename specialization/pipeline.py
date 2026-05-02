@@ -7,9 +7,9 @@ from pathlib import Path
 import shutil
 
 from agents.agent import Agent
-from agents.skills.skill_manager import SkillManager
+from specialization.skill_manager import SkillManager
 from eval.benchmark_data import BENCHMARK_CASES
-from eval.benchmark_runner import BenchmarkRunner, to_dict
+from eval.benchmark_runner import BenchmarkRunner
 from specialization.architect import Architect
 from specialization.builder import Builder
 from specialization.evaluator import Evaluator
@@ -99,7 +99,17 @@ class SpecializationPipeline:
         skills_dir: Path | None = None,
         max_iterations: int = 5,
     ) -> dict:
+        from datetime import datetime
+        
         active_config = str(config_path) if config_path else "agents/agent_config.json"
+        
+        # Run baseline benchmark BEFORE specialization
+        baseline_runner = BenchmarkRunner(
+            config_path=active_config,
+            baseline_config_path="agents/agent_config.stem.json",
+        )
+        baseline_cases = [c for c in BENCHMARK_CASES if c.domain == task_class]
+        baseline_bench = baseline_runner.run(cases=baseline_cases)
         
         best_result = None
         best_score = 0.0
@@ -162,10 +172,34 @@ class SpecializationPipeline:
             self.builder.write_config(best_config, config_path=config_path)
             print(f"\n✓ Restored best agent (score: {best_score:.3f})")
 
+        # Run specialized benchmark AFTER best agent is restored
+        specialized_runner = BenchmarkRunner(
+            config_path=active_config,
+            baseline_config_path="agents/agent_config.stem.json",
+        )
+        specialized_bench = specialized_runner.run(cases=baseline_cases)
+
+        # Write comparison to results_dir
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        comparison = {
+            "task_class": task_class,
+            "timestamp": timestamp,
+            "total_iterations": len(history),
+            "best_iteration": best_result["iteration"] if best_result else 0,
+            "baseline_avg_score": baseline_bench.baseline_average_total,
+            "specialized_avg_score": specialized_bench.specialized_average_total,
+            "delta": specialized_bench.baseline_average_total - baseline_bench.baseline_average_total
+        }
+        
+        result_file = self.results_dir / f"comparison_{task_class.lower().replace(' ', '_')}_{timestamp}.json"
+        result_file.write_text(json.dumps(comparison, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"\n✓ Comparison saved to {result_file}")
+
         return {
             "task_class": task_class,
             "total_iterations": len(history),
             "best_score": best_score,
             "history": history,
             "best_result": best_result,
+            "comparison": comparison,
         }
