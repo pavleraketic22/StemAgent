@@ -29,12 +29,15 @@ Sample output from agent:
 {sample_output}
 ---
 
+IMPORTANT: First check if the answer actually ANSWERS the question.
+If the answer doesn't address what was asked, score everything LOW.
+
 Rate each dimension 0.0 to 1.0:
 
 1. TASK_SPECIFICITY
-   Does the output show domain expertise specific to {task_class}?
-   0.0 = could be any generic LLM response
-   1.0 = clearly written by someone who knows {task_class} deeply
+   Does the output show domain expertise AND directly answer what was asked?
+   0.0 = doesn't answer the question or generic response
+   1.0 = clearly answers the question with domain expertise
 
 2. REASONING_QUALITY
    Does the agent show its reasoning, not just conclusions?
@@ -102,6 +105,7 @@ class Evaluator:
         sample_outputs: list[str],
         target_keywords: list[str] | None = None,
         task_class: str = "Unknown",
+        question: str = "",
     ) -> EvaluationResult:
         reasons: list[str] = []
 
@@ -117,8 +121,13 @@ class Evaluator:
                 dimension_scores={},
             )
 
-        # ── 2. LLM judge ──────────────────────────────────────────────────────
+        # ── 1.5. Quick relevance check ────────────────────────────────────────
         best_output = max(sample_outputs, key=len) if sample_outputs else ""
+        relevance_penalty = self._check_answer_relevance(question, best_output)
+        if relevance_penalty > 0:
+            reasons.append(f"Relevance penalty: {relevance_penalty:.2f} (answer doesn't match question)")
+
+        # ── 2. LLM judge ──────────────────────────────────────────────────────
         dim_scores = self._llm_judge(
             task_class=task_class,
             pipeline_steps=pipeline_steps,
@@ -132,6 +141,9 @@ class Evaluator:
             dim_scores.get(dim, 0.0) * weight
             for dim, weight in DIMENSION_WEIGHTS.items()
         )
+        
+        # Apply relevance penalty
+        score = max(0, score - relevance_penalty)
 
         # ── 4. Bonus: keyword coverage (lightweight signal) ───────────────────
         if target_keywords:
@@ -245,3 +257,35 @@ class Evaluator:
             if value.lower().startswith("json"):
                 value = value[4:].strip()
         return value
+
+    def _check_answer_relevance(self, question: str, answer: str) -> float:
+        """Quick heuristic check if answer is relevant to question.
+        
+        Returns penalty 0.0-0.3 if answer seems off-topic.
+        """
+        if not question or not answer:
+            return 0.0
+        
+        # Extract key terms from question (words with 4+ chars)
+        question_words = set(
+            w.lower().strip("?.,!")
+            for w in question.split()
+            if len(w) >= 4
+        )
+        
+        # Check how many key question terms appear in answer
+        answer_lower = answer.lower()
+        matches = sum(1 for w in question_words if w in answer_lower)
+        
+        if not question_words:
+            return 0.0
+        
+        match_rate = matches / len(question_words)
+        
+        # If less than 30% of key terms appear, apply penalty
+        if match_rate < 0.3:
+            return 0.3
+        elif match_rate < 0.5:
+            return 0.1
+        
+        return 0.0

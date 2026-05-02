@@ -111,24 +111,48 @@ class SkillManager:
         scores: dict[str, Any],
         domain: str,
     ) -> str | None:
-        """Use LLM to extract actionable learning from failed case."""
+        """Use LLM to extract actionable learning from failed case - DOMAIN LEVEL."""
         if not self.client:
             return None
 
-        prompt = f"""You are analyzing a failed agent execution to extract a learning.
+        # Find lowest scoring dimension for targeted improvement
+        lowest_dim = None
+        lowest_score = 1.0
+        for dim, score in scores.items():
+            if isinstance(score, (int, float)) and score < lowest_score:
+                lowest_score = score
+                lowest_dim = dim
 
-Domain: {domain}
-Question: {question}
+        # Domain-specific guidance
+        domain_guidance = {
+            "Deep Research": "Focus on: explaining concepts clearly, citing sources, providing evidence, synthesizing information",
+            "QA": "Focus on: test coverage, edge cases, reproducibility, risk prioritization",
+            "Security": "Focus on: threat modeling, specific vulnerabilities, layered mitigations, OWASP references",
+        }
+        guidance = domain_guidance.get(domain, "Focus on quality and completeness")
 
-Answer given: {answer[:500]}...
+        prompt = f"""You are analyzing an agent's answer to extract a learning for the DOMAIN: {domain}
 
-Scores: {json.dumps(scores, indent=2)}
+Domain guidance: {guidance}
 
-What concrete improvement rule should the agent follow next time?
-Focus on 1-2 specific, actionable rules that would improve the score.
+The agent should learn how to solve ANY problem in {domain}, not just this specific question.
+
+Answer given (first 600 chars):
+{answer[:600]}
+
+Dimension scores: {json.dumps(scores, indent=2)}
+Weakest area: {lowest_dim} (score: {lowest_score})
+
+Your task: Extract 1 rule that improves the agent's performance on ANY {domain} task.
+The rule should be about methodology/process, not just this specific answer.
+
+Examples of GOOD domain-level rules:
+- "For {domain}, always start with a clear definition or overview before details"
+- "In {domain}, always verify claims with evidence or sources"
+- "When solving {domain} problems, always consider edge cases and failure modes"
+- "{domain} responses should be structured with clear sections"
 
 Return ONLY the rule as a bullet point starting with "- ".
-Example: "- Always include edge cases explicitly in QA test plans."
 """
 
         try:

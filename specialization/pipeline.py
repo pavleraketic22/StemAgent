@@ -43,12 +43,15 @@ class SpecializationPipeline:
     def cleanup_session(session_dir: Path) -> None:
         if session_dir.exists() and session_dir.is_dir():
             shutil.rmtree(session_dir, ignore_errors=True)
+        if Path("skills/learnings.md").exists():
+            shutil.rmtree("skills/learnings.md", ignore_errors=True)
 
     def _auto_learn(
         self,
         task_class: str,
         eval_result,
         question: str,
+        answer: str,
         threshold: float = 0.75,
     ) -> None:
         """Extract and append learnings after each iteration to improve score."""
@@ -70,10 +73,10 @@ class SpecializationPipeline:
                     weakest_score = score_val
                     weakest_dim = dim
         
-        # Generate improvement based on weakest dimension
+        # Generate improvement based on weakest dimension - use ACTUAL answer
         learning = skill_manager.extract_learning_with_llm(
             question=question,
-            answer=eval_result.reasons[-1] if eval_result.reasons else "",
+            answer=answer,  # Use actual answer, not just reasoning
             scores=dim_scores,
             domain=task_class,
         )
@@ -121,6 +124,7 @@ class SpecializationPipeline:
                 sample_outputs=[result.get("answer", "")],
                 target_keywords=[task_class],
                 task_class=task_class,
+                question=dry_question,
             )
 
             print(f"Score: {eval_result.score:.3f} | Should stop: {eval_result.should_stop}")
@@ -130,6 +134,7 @@ class SpecializationPipeline:
                 task_class=task_class,
                 eval_result=eval_result,
                 question=dry_question,
+                answer=result.get("answer", "")[:1000],
             )
             
             entry = {
@@ -150,6 +155,12 @@ class SpecializationPipeline:
             if eval_result.should_stop:
                 print(f"✓ Stopping at iteration {iteration} (score >= 0.75)")
                 break
+
+        # Restore best config (best agent)
+        if best_result and config_path:
+            best_config = best_result["architecture"]
+            self.builder.write_config(best_config, config_path=config_path)
+            print(f"\n✓ Restored best agent (score: {best_score:.3f})")
 
         return {
             "task_class": task_class,
@@ -191,6 +202,8 @@ class SpecializationPipeline:
                 pipeline_steps=plan.pipeline_steps,
                 sample_outputs=[smoke.get("answer", "")],
                 target_keywords=[task_class],
+                task_class=task_class,
+                question=dry_question,
             )
 
             bench = BenchmarkRunner(config_path=str(active_config)).run(
@@ -204,6 +217,7 @@ class SpecializationPipeline:
                 task_class=task_class,
                 eval_result=eval_result,
                 question=dry_question,
+                answer=smoke.get("answer", "")[:1000],
             )
 
             entry = {
