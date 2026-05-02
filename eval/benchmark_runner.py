@@ -4,7 +4,7 @@ import json
 import os
 import random
 from dataclasses import asdict, dataclass
-from statistics import mean
+from statistics import mean, stdev
 from typing import Any
 
 from dotenv import load_dotenv
@@ -65,9 +65,15 @@ class CaseResult:
     specialized_total: float
     delta_total: float
     comparative_label: str
-    comparative_win: bool
+    comparative_win_rate: float  # Changed from comparative_win: bool
     baseline_scores: dict[str, Any]
     specialized_scores: dict[str, Any]
+    baseline_keyword_score: float = 0.0
+    specialized_keyword_score: float = 0.0
+    baseline_llm_score: float = 0.0
+    specialized_llm_score: float = 0.0
+    baseline_judge_variance: float = 0.0
+    specialized_judge_variance: float = 0.0
 
 
 @dataclass
@@ -76,6 +82,7 @@ class BenchmarkResult:
     specialized_average_total: float
     delta_total: float
     comparative_win_rate: float
+    comparative_win_rate_std: float  # NEW: variance across cases
     baseline_by_difficulty: dict[str, float]
     specialized_by_difficulty: dict[str, float]
     baseline_by_domain: dict[str, float]
@@ -122,13 +129,12 @@ class BenchmarkRunner:
                 response_text=specialized_answer,
             )
 
-            comparative_label = self._comparative_judge(
+            comparative_label, comparative_win_rate = self._comparative_judge_multi(
                 question=case.question,
                 baseline_answer=baseline_answer,
                 specialized_answer=specialized_answer,
                 domain=case.domain,
             )
-            comparative_win = comparative_label == "SPECIALIZED"
 
             baseline_total = float(baseline_scores["total"])
             specialized_total = float(specialized_scores["total"])
@@ -142,7 +148,7 @@ class BenchmarkRunner:
                     specialized_total=specialized_total,
                     delta_total=specialized_total - baseline_total,
                     comparative_label=comparative_label,
-                    comparative_win=comparative_win,
+                    comparative_win_rate=comparative_win_rate,
                     baseline_scores=baseline_scores,
                     specialized_scores=specialized_scores,
                 )
@@ -150,7 +156,9 @@ class BenchmarkRunner:
 
         baseline_avg = mean([r.baseline_total for r in results]) if results else 0.0
         specialized_avg = mean([r.specialized_total for r in results]) if results else 0.0
-        win_rate = mean([1.0 if r.comparative_win else 0.0 for r in results]) if results else 0.0
+        win_rates = [r.comparative_win_rate for r in results]
+        win_rate = mean(win_rates) if win_rates else 0.0
+        win_rate_std = stdev(win_rates) if len(win_rates) > 1 else 0.0
 
         baseline_by_difficulty = self._aggregate_by(results, key="difficulty", value="baseline_total")
         specialized_by_difficulty = self._aggregate_by(
@@ -164,6 +172,7 @@ class BenchmarkRunner:
             specialized_average_total=specialized_avg,
             delta_total=specialized_avg - baseline_avg,
             comparative_win_rate=win_rate,
+            comparative_win_rate_std=win_rate_std,
             baseline_by_difficulty=baseline_by_difficulty,
             specialized_by_difficulty=specialized_by_difficulty,
             baseline_by_domain=baseline_by_domain,
@@ -271,6 +280,43 @@ class BenchmarkRunner:
         if label == "TIE":
             return "TIE"
         return "SPECIALIZED" if label == specialized_label else "BASELINE"
+
+    def _comparative_judge_multi(
+        self,
+        *,
+        question: str,
+        baseline_answer: str,
+        specialized_answer: str,
+        domain: str,
+    ) -> tuple[str, float]:
+        """Run comparative judge 3 times and return win rate."""
+        wins = 0
+        ties = 0
+
+        for _ in range(3):
+            result = self._comparative_judge(
+                question=question,
+                baseline_answer=baseline_answer,
+                specialized_answer=specialized_answer,
+                domain=domain,
+            )
+            if result == "SPECIALIZED":
+                wins += 1
+            elif result == "TIE":
+                ties += 1
+
+        total_runs = 3
+        win_rate = wins / total_runs
+
+        # Determine label based on win rate
+        if win_rate > 0.5:
+            label = "SPECIALIZED"
+        elif win_rate < 0.33:
+            label = "BASELINE"
+        else:
+            label = "TIE"
+
+        return label, win_rate
 
     @staticmethod
     def _rubric_for_domain(domain: str) -> tuple[str, tuple[str, str, str, str, str]]:

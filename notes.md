@@ -55,3 +55,5 @@ I have a few options but none really seem good enough to me> The biggest problem
 The options I have rn are:
 - LLM judge
 - citation score
+
+As for the skills builder, I've tried manual aor rather handcrafted prompts but it just doesn't work. I will probably have to go with a more dynamic approach where the agent writes the skill.md file on its own without any hardcoded structure.

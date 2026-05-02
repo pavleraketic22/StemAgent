@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 
 from agents.agent import Agent
+from agents.skills.skill_manager import SkillManager
 from eval.benchmark_data import BENCHMARK_CASES
 from eval.benchmark_runner import BenchmarkRunner, to_dict
 from specialization.architect import Architect
@@ -43,6 +44,45 @@ class SpecializationPipeline:
         if session_dir.exists() and session_dir.is_dir():
             shutil.rmtree(session_dir, ignore_errors=True)
 
+    def _auto_learn(
+        self,
+        task_class: str,
+        benchmark_result,
+        threshold: float = 0.6,
+    ) -> None:
+        """Extract and append learnings if benchmark score is below threshold."""
+        normalized_score = benchmark_result.specialized_average_total / 25.0
+
+        if normalized_score >= threshold:
+            return  # No learning needed
+
+        # Find the worst performing case
+        case_results = benchmark_result.case_results
+        if not case_results:
+            return
+
+        worst_case = min(case_results, key=lambda c: c.specialized_total)
+        question = worst_case.question
+        answer = worst_case.specialized_scores
+
+        # Use SkillManager to extract learning with LLM
+        skill_manager = SkillManager()
+        learning = skill_manager.extract_learning_with_llm(
+            question=question,
+            answer=str(answer),
+            scores=answer,
+            domain=task_class,
+        )
+
+        if learning:
+            skill_manager.append_learning(
+                domain=task_class,
+                improvement=learning,
+                question=question,
+                scores={"total": worst_case.specialized_total, **answer},
+            )
+            print(f"\n[Auto-learn] Added: {learning[:80]}...")
+
     def run(
         self,
         task_class: str,
@@ -51,7 +91,7 @@ class SpecializationPipeline:
         config_path: Path | None = None,
         skills_dir: Path | None = None,
     ) -> dict:
-        exploration = self.explorer.run(task_class)
+        exploration = self.explorer.run(task_class, question=dry_question)
         plan = self.architect.build_plan(exploration)
         self.builder.build(plan, config_path=config_path, skills_dir=skills_dir)
 
@@ -94,7 +134,7 @@ class SpecializationPipeline:
         history: list[dict] = []
 
         for iteration in range(1, max_iterations + 1):
-            exploration = self.explorer.run(task_class)
+            exploration = self.explorer.run(task_class, question=dry_question)
             plan = self.architect.build_plan(exploration)
             self.builder.build(plan, config_path=active_config, skills_dir=skills_dir)
 
@@ -113,6 +153,13 @@ class SpecializationPipeline:
             )
             benchmark_norm = bench.specialized_average_total / 25.0
             combined_score = (0.55 * benchmark_norm) + (0.45 * eval_result.score)
+
+            # Auto-learning: extract and append learnings if score is low
+            self._auto_learn(
+                task_class=task_class,
+                benchmark_result=bench,
+                threshold=0.6,  # If normalized score < 0.6, extract learning
+            )
 
             entry = {
                 "iteration": iteration,

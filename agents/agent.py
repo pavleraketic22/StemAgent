@@ -16,6 +16,21 @@ except Exception:
     pass
 
 
+# Lazy import to avoid circular dependency
+_SkillManager = None
+
+
+def _get_skill_manager():
+    global _SkillManager
+    if _SkillManager is None:
+        try:
+            from agents.skills.skill_manager import SkillManager
+            _SkillManager = SkillManager
+        except Exception:
+            pass
+    return _SkillManager
+
+
 class Agent:
     def __init__(self, config_path: str):
         load_dotenv()
@@ -52,6 +67,10 @@ class Agent:
 
         # Active toolset is selected at runtime by specialization step.
         self.tools: dict[str, Any] = {}
+
+        # Skill manager for learnings
+        SkillManagerClass = _get_skill_manager()
+        self.skill_manager = SkillManagerClass() if SkillManagerClass else None
 
     def run(self, question: str, task_class: str | None = None) -> dict:
         selected_tool_names = self._select_tools_for_task(
@@ -166,6 +185,8 @@ class Agent:
                     "arxiv_search",
                     "wikipedia_search",
                     "citation_extractor",
+                    "file_read",
+                    "file_write"
                 ]
             )
         if any(k in text for k in ["qa", "quality", "review", "check"]):
@@ -233,14 +254,42 @@ class Agent:
                     tool_outputs.append(f"[{tool_name}] error: {exc}")
             prompt += "\n\nTool results:\n" + "\n\n".join(tool_outputs)
 
+        # Build system prompt with learnings
+        system_prompt = self._build_system_prompt_with_learnings(context)
+
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "system", "content": self.system_prompt},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}
             ]
         )
         return response.choices[0].message.content or ""
+
+    def _build_system_prompt_with_learnings(self, context: dict) -> str:
+        """Build system prompt including learned improvements."""
+        base_prompt = self.system_prompt
+
+        if not self.skill_manager:
+            return base_prompt
+
+        task_class = context.get("task_class", "")
+        if not task_class:
+            return base_prompt
+
+        # Get relevant learnings for this domain
+        learnings = self.skill_manager.get_relevant_learnings(task_class)
+
+        if not learnings:
+            return base_prompt
+
+        # Append learnings to system prompt
+        enhanced_prompt = f"""{base_prompt}
+
+## Learned Improvements (apply these rules)
+{learnings}
+"""
+        return enhanced_prompt
 
     @staticmethod
     def _safe_format(template: str, context: dict[str, Any]) -> str:
