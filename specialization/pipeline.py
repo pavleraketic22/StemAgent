@@ -104,8 +104,9 @@ class SpecializationPipeline:
         active_config = str(config_path) if config_path else "agents/agent_config.json"
         
         # Run baseline benchmark BEFORE specialization
+        # Use stem config as "specialized" since we haven't specialized yet
         baseline_runner = BenchmarkRunner(
-            config_path=active_config,
+            config_path="agents/agent_config.stem.json",
             baseline_config_path="agents/agent_config.stem.json",
         )
         baseline_cases = [c for c in BENCHMARK_CASES if c.domain == task_class]

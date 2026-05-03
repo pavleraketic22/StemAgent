@@ -1,0 +1,9 @@
+{
+  "task_class": "QA",
+  "timestamp": "20260503_115850",
+  "total_iterations": 5,
+  "best_iteration": 5,
+  "baseline_avg_score": 23.7,
+  "specialized_avg_score": 23.3,
+  "delta": 0.10000000000000142
+}
