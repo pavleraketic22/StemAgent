@@ -1,0 +1,9 @@
+{
+  "task_class": "Deep Research",
+  "timestamp": "20260503_140106",
+  "total_iterations": 1,
+  "best_iteration": 1,
+  "baseline_avg_score": 18.0,
+  "specialized_avg_score": 22.5,
+  "delta": 4.5
+}

@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 
 from agents.agent import Agent
+from specialization import skill_manager
 from specialization.skill_manager import SkillManager
 from eval.benchmark_data import BENCHMARK_CASES
 from eval.benchmark_runner import BenchmarkRunner
@@ -48,19 +49,13 @@ class SpecializationPipeline:
 
     def _auto_learn(
         self,
+        skill_manager: SkillManager,
         task_class: str,
         eval_result,
         question: str,
         answer: str,
-        threshold: float = 0.75,
     ) -> None:
         """Extract and append learnings after each iteration to improve score."""
-        score = eval_result.score
-
-        # Always learn (no threshold) to ensure improvement
-        # Use SkillManager to extract learning with LLM
-        skill_manager = SkillManager()
-        
         # Get dimension scores to find what to improve
         dim_scores = eval_result.dimension_scores if hasattr(eval_result, 'dimension_scores') else {}
         
@@ -76,7 +71,7 @@ class SpecializationPipeline:
         # Generate improvement based on weakest dimension - use ACTUAL answer
         learning = skill_manager.extract_learning_with_llm(
             question=question,
-            answer=answer,  # Use actual answer, not just reasoning
+            answer=answer,
             scores=dim_scores,
             domain=task_class,
         )
@@ -112,6 +107,9 @@ class SpecializationPipeline:
         baseline_cases = [c for c in BENCHMARK_CASES if c.domain == task_class]
         baseline_bench = baseline_runner.run(cases=baseline_cases)
         
+        # Single SkillManager for entire run - persists learnings between iterations
+        skill_manager = SkillManager()
+        
         best_result = None
         best_score = 0.0
         history: list[dict] = []
@@ -119,8 +117,17 @@ class SpecializationPipeline:
         for iteration in range(1, max_iterations + 1):
             print(f"\n--- Iteration {iteration}/{max_iterations} ---")
             
-            # Explore → Architect → Build
-            exploration = self.explorer.run(task_class, question=dry_question)
+            # Read learnings from previous iterations BEFORE Explorer
+            learnings = skill_manager.get_relevant_learnings(task_class)
+            if learnings:
+                print(f"[Learnings] {len(learnings)} chars from previous iterations")
+            
+            # Explore → Architect → Build (with learnings context)
+            exploration = self.explorer.run(
+                task_class=task_class,
+                question=dry_question,
+                learnings=learnings,
+            )
             plan = self.architect.build_plan(exploration)
             self.builder.build(plan, config_path=active_config, skills_dir=skills_dir)
 
@@ -142,6 +149,7 @@ class SpecializationPipeline:
             
             # Auto-learning: extract and append learnings after each iteration
             self._auto_learn(
+                skill_manager=skill_manager,
                 task_class=task_class,
                 eval_result=eval_result,
                 question=dry_question,
@@ -189,7 +197,7 @@ class SpecializationPipeline:
             "best_iteration": best_result["iteration"] if best_result else 0,
             "baseline_avg_score": baseline_bench.baseline_average_total,
             "specialized_avg_score": specialized_bench.specialized_average_total,
-            "delta": specialized_bench.baseline_average_total - baseline_bench.baseline_average_total
+            "delta": specialized_bench.specialized_average_total - baseline_bench.baseline_average_total
         }
         
         result_file = self.results_dir / f"comparison_{task_class.lower().replace(' ', '_')}_{timestamp}.json"

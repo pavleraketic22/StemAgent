@@ -1,50 +1,40 @@
 
-## Learned Improvement (QA) - 2026-05-03T11:44:12.161748
+## Learned Improvement (Deep Research) - 2026-05-03T13:41:34.875080
 
-**Trigger:** Low scores: {'task_specificity': 0.2, 'reasoning_quality': 0.3, 'tool_utilization': 0.4, 'output_structure': 0.4, 'failure_avoidance': 0.1}
-**Question:** can you write simple test for a webiste...
+**Trigger:** Low scores: {'task_specificity': 1.0, 'reasoning_quality': 0.0, 'tool_utilization': 1.0, 'output_structure': 1.0, 'failure_avoidance': 1.0}
+**Question:** what is tf-idf...
 
 **Improvement:**
-- "In QA, always identify and address potential failure modes and edge cases to enhance test coverage and reliability."
+- "In Deep Research, always provide a clear rationale or explanation for the concepts discussed to enhance reasoning quality."
 
 ---
 
-## Learned Improvement (QA) - 2026-05-03T11:45:15.445078
+## Learned Improvement (Security) - 2026-05-03T14:19:09.010171
 
-**Trigger:** Low scores: {'task_specificity': 0.2, 'reasoning_quality': 0.4, 'tool_utilization': 0.6, 'output_structure': 0.7, 'failure_avoidance': 0.2}
-**Question:** can you write simple test for a webiste...
+**Trigger:** Low scores: {'task_specificity': 0.8, 'reasoning_quality': 0.7, 'tool_utilization': 1.0, 'output_structure': 1.0, 'failure_avoidance': 0.6}
+**Question:** design a security review checklist for node.js micorservice before it goes to production...
 
 **Improvement:**
-- "In QA, ensure comprehensive test coverage by systematically mapping test cases to all key requirements and considering edge cases."
+- "In Security, always conduct a thorough risk assessment that includes identifying potential vulnerabilities, their likelihood, and impact before implementing mitigations."
 
 ---
 
-## Learned Improvement (QA) - 2026-05-03T11:46:44.226183
+## Learned Improvement (QA) - 2026-05-03T15:07:22.751718
 
-**Trigger:** Low scores: {'task_specificity': 0.4, 'reasoning_quality': 0.3, 'tool_utilization': 0.2, 'output_structure': 0.6, 'failure_avoidance': 0.1}
-**Question:** can you write simple test for a webiste...
+**Trigger:** Low scores: {'task_specificity': 0.5, 'reasoning_quality': 0.5, 'tool_utilization': 1.0, 'output_structure': 0.5, 'failure_avoidance': 0.5}
+**Question:** can you write code for automatic test for a website...
 
 **Improvement:**
-- "In QA, always incorporate failure scenarios and edge cases into your test coverage to ensure robustness."
+- "In QA, ensure comprehensive test coverage by systematically mapping test cases to all identified requirements, including edge cases and potential failure modes."
 
 ---
 
-## Learned Improvement (QA) - 2026-05-03T11:48:15.260377
+## Learned Improvement (QA) - 2026-05-03T15:08:50.713744
 
-**Trigger:** Low scores: {'task_specificity': 0.78, 'reasoning_quality': 0.72, 'tool_utilization': 0.85, 'output_structure': 0.8, 'failure_avoidance': 0.58}
-**Question:** can you write simple test for a webiste...
-
-**Improvement:**
-- "In QA, always incorporate a failure analysis step to identify potential risks and edge cases in the testing process."
-
----
-
-## Learned Improvement (QA) - 2026-05-03T11:49:19.982527
-
-**Trigger:** Low scores: {'task_specificity': 0.9, 'reasoning_quality': 0.7, 'tool_utilization': 0.8, 'output_structure': 0.9, 'failure_avoidance': 0.5}
-**Question:** can you write simple test for a webiste...
+**Trigger:** Low scores: {'task_specificity': 0.8, 'reasoning_quality': 0.7, 'tool_utilization': 1.0, 'output_structure': 1.0, 'failure_avoidance': 0.6}
+**Question:** can you write code for automatic test for a website...
 
 **Improvement:**
-- In QA, always incorporate failure scenarios and edge cases into test case design to enhance robustness and coverage.
+- "In QA, always incorporate failure scenarios and edge cases into your testing strategy to ensure comprehensive coverage and risk mitigation."
 
 ---

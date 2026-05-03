@@ -1,0 +1,9 @@
+{
+  "task_class": "Security",
+  "timestamp": "20260503_142626",
+  "total_iterations": 1,
+  "best_iteration": 1,
+  "baseline_avg_score": 20.0,
+  "specialized_avg_score": 19.8,
+  "delta": -0.1999999999999993
+}

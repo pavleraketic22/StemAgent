@@ -49,12 +49,13 @@ class Explorer:
         self.client = OpenAI(api_key=api_key)
         self.model = model
 
-    def run(self, task_class: str, question: str | None = None) -> ExplorerResult:
+    def run(self, task_class: str, question: str | None = None, learnings: str = "") -> ExplorerResult:
         """Run exploration with optional question for focus.
         
         Args:
             task_class: Domain (Deep Research, QA, Security)
             question: Optional question to focus skill briefs
+            learnings: Optional learnings from previous iterations to inform briefs
         """
         available_tools = sorted(AVAILABLE_TOOLS.keys())
         
@@ -64,7 +65,7 @@ class Explorer:
         
         # Generate skill briefs - either from question focus or general
         if question:
-            skill_briefs = self._generate_focused_briefs(template_steps, task_class, question)
+            skill_briefs = self._generate_focused_briefs(template_steps, task_class, question, learnings)
         else:
             skill_briefs = self._generate_generic_briefs(template_steps, task_class)
         
@@ -79,13 +80,23 @@ class Explorer:
             skill_briefs=skill_briefs,
         )
 
-    def _generate_focused_briefs(self, steps: list[str], task_class: str, question: str) -> dict[str, str]:
-        """Generate skill briefs focused on the specific question."""
+    def _generate_focused_briefs(self, steps: list[str], task_class: str, question: str, learnings: str = "") -> dict[str, str]:
+        """Generate skill briefs focused on the specific question, with learnings from previous iterations."""
+        # Add learnings context if available
+        learnings_section = ""
+        if learnings.strip():
+            learnings_section = (
+                f"\n\nIMPORTANT: Previous iterations failed. Apply these lessons:\n"
+                f"{learnings}\n"
+                "Your briefs MUST address these failures. Do NOT repeat approaches that already scored low.\n"
+            )
+        
         prompt = (
             "Generate brief skill descriptions for a specialized agent.\n"
             f"Task class: {task_class}\n"
             f"Question: {question}\n"
-            f"Pipeline steps: {steps}\n\n"
+            f"Pipeline steps: {steps}\n"
+            f"{learnings_section}\n\n"
             "For each step, write a 1-sentence brief that focuses on how to handle this specific question.\n"
             "Return ONLY valid JSON:\n"
             '{"step_name": "brief description", ...}'
