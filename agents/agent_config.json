@@ -4,17 +4,6 @@
   "model": "gpt-4o-mini",
   "system_prompt": "You are a helpful stem-agent assistant. Be concise, evidence-based, and accurate.",
   "tools": [
-    "web_search",
-    "url_fetch",
-    "arxiv_search",
-    "wikipedia_search",
-    "citation_extractor",
-    "text_chunker",
-    "diff_compare",
-    "checklist_validator",
-    "security_pattern_scan",
-    "file_read",
-    "file_write"
   ],
   "pipeline_steps": [
     "answer"

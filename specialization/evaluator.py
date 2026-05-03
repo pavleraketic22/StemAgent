@@ -89,7 +89,7 @@ STRUCTURAL_FLOOR = {
 
 
 class Evaluator:
-    def __init__(self, model: str = "gpt-5.4-mini") -> None:
+    def __init__(self, model: str = "gpt-4o-mini") -> None:
         load_dotenv()
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
@@ -154,7 +154,7 @@ class Evaluator:
             score = min(1.0, score + 0.05 * coverage)
             reasons.append(f"Keyword coverage bonus: {coverage:.2f}")
 
-        should_stop = score >= 0.5
+        should_stop = score >= 0.75
         reasons.append(
             f"Final score: {score:.3f} → "
             f"{'stop' if should_stop else 'continue'}"
