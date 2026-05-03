@@ -289,7 +289,6 @@ class BenchmarkRunner:
         specialized_answer: str,
         domain: str,
     ) -> tuple[str, float]:
-        """Run comparative judge 3 times and return win rate."""
         wins = 0
         ties = 0
 
