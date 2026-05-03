@@ -61,7 +61,6 @@ class SkillManager:
         return "\n\n".join(relevant) if relevant else ""
 
     def load_workflow_skills(self, steps: list[str]) -> dict[str, str]:
-        """Load workflow skill files for given pipeline steps."""
         skills = {}
         for step in steps:
             skill_file = self.workflow_dir / f"{step}.md"
@@ -79,8 +78,7 @@ class SkillManager:
         answer: str | None = None,
         scores: dict[str, Any] | None = None,
     ) -> None:
-        """Append a new learning to learnings.md"""
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = datetime.now().isoformat()
 
         # Ensure parent directory exists
         self.learnings_path.parent.mkdir(parents=True, exist_ok=True)
@@ -111,7 +109,6 @@ class SkillManager:
         scores: dict[str, Any],
         domain: str,
     ) -> str | None:
-        """Use LLM to extract actionable learning from failed case - DOMAIN LEVEL."""
         if not self.client:
             return None
 
@@ -170,12 +167,10 @@ Return ONLY the rule as a bullet point starting with "- ".
             return None
 
     def get_all_context(self, domain: str, pipeline_steps: list[str]) -> dict[str, str]:
-        """Get all relevant context for agent: learnings + workflow skills."""
         return {
             "learnings": self.get_relevant_learnings(domain),
             "workflow": self.load_workflow_skills(pipeline_steps),
         }
 
     def clear_cache(self) -> None:
-        """Clear learnings cache to force reload."""
         self._learnings_cache = None

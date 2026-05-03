@@ -109,7 +109,7 @@ class Evaluator:
     ) -> EvaluationResult:
         reasons: list[str] = []
 
-        # ── 1. Structural floor check ─────────────────────────────────────────
+        #Structural floor check
         structural_fail = self._check_structural_floor(
             selected_tools, pipeline_steps, sample_outputs, reasons
         )
@@ -121,13 +121,13 @@ class Evaluator:
                 dimension_scores={},
             )
 
-        # ── 1.5. Quick relevance check ────────────────────────────────────────
+        # Quick relevance check
         best_output = max(sample_outputs, key=len) if sample_outputs else ""
         relevance_penalty = self._check_answer_relevance(question, best_output)
         if relevance_penalty > 0:
             reasons.append(f"Relevance penalty: {relevance_penalty:.2f} (answer doesn't match question)")
 
-        # ── 2. LLM judge ──────────────────────────────────────────────────────
+        #LLM judge
         dim_scores = self._llm_judge(
             task_class=task_class,
             pipeline_steps=pipeline_steps,
@@ -136,7 +136,7 @@ class Evaluator:
             reasons=reasons,
         )
 
-        # ── 3. Weighted score ─────────────────────────────────────────────────
+        # Weighted score
         score = sum(
             dim_scores.get(dim, 0.0) * weight
             for dim, weight in DIMENSION_WEIGHTS.items()
@@ -145,7 +145,7 @@ class Evaluator:
         # Apply relevance penalty
         score = max(0, score - relevance_penalty)
 
-        # ── 4. Bonus: keyword coverage (lightweight signal) ───────────────────
+        # Bonus: keyword coverage (lightweight signal)
         if target_keywords:
             joined = best_output.lower()
             coverage = sum(
@@ -174,7 +174,6 @@ class Evaluator:
         outputs: list[str],
         reasons: list[str],
     ) -> bool:
-        """Returns True if agent fails structural minimums."""
         failed = False
 
         if len(tools) < STRUCTURAL_FLOOR["min_tools"]:
@@ -259,10 +258,7 @@ class Evaluator:
         return value
 
     def _check_answer_relevance(self, question: str, answer: str) -> float:
-        """Quick heuristic check if answer is relevant to question.
-        
-        Returns penalty 0.0-0.3 if answer seems off-topic.
-        """
+
         if not question or not answer:
             return 0.0
         

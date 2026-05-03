@@ -16,7 +16,6 @@ except Exception:
     pass
 
 
-# Lazy import to avoid circular dependency
 _SkillManager = None
 
 
@@ -53,8 +52,6 @@ class Agent:
 
         raw_skills = self.config.get("skills", {})
         if isinstance(raw_skills, list):
-            # Backward compatibility: when skills is a list of names,
-            # convert to empty templates so the app doesn't crash.
             self.skills = {name: {"prompt_template": "{question}"} for name in raw_skills}
         else:
             self.skills = raw_skills
@@ -218,7 +215,6 @@ class Agent:
         return dedup[:5]
 
     def _execute_skill(self, skill: dict, context: dict) -> str:
-        # popuni prompt_template sa kontekstom
         prompt_template = self._load_skill_prompt(skill)
         prompt = self._safe_format(prompt_template, context)
 
@@ -267,7 +263,6 @@ class Agent:
         return response.choices[0].message.content or ""
 
     def _build_system_prompt_with_learnings(self, context: dict) -> str:
-        """Build system prompt including learned improvements."""
         base_prompt = self.system_prompt
 
         if not self.skill_manager:

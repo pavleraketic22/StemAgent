@@ -18,7 +18,6 @@ from specialization.explorer import Explorer
 
 
 class SpecializationPipeline:
-    """Simple v1 specialization loop: explorer -> architect -> builder -> evaluate."""
 
     def __init__(self) -> None:
         self.explorer = Explorer()
@@ -55,7 +54,6 @@ class SpecializationPipeline:
         question: str,
         answer: str,
     ) -> None:
-        """Extract and append learnings after each iteration to improve score."""
         # Get dimension scores to find what to improve
         dim_scores = eval_result.dimension_scores if hasattr(eval_result, 'dimension_scores') else {}
         

@@ -39,7 +39,6 @@ class ExplorerResult:
 
 
 class Explorer:
-    """Explorer researches how a task class is typically solved."""
 
     def __init__(self, model: str = "gpt-4o-mini") -> None:
         load_dotenv()
@@ -50,13 +49,7 @@ class Explorer:
         self.model = model
 
     def run(self, task_class: str, question: str | None = None, learnings: str = "") -> ExplorerResult:
-        """Run exploration with optional question for focus.
-        
-        Args:
-            task_class: Domain (Deep Research, QA, Security)
-            question: Optional question to focus skill briefs
-            learnings: Optional learnings from previous iterations to inform briefs
-        """
+
         available_tools = sorted(AVAILABLE_TOOLS.keys())
         
         # Use domain template as base (stable pipeline)
@@ -81,7 +74,6 @@ class Explorer:
         )
 
     def _generate_focused_briefs(self, steps: list[str], task_class: str, question: str, learnings: str = "") -> dict[str, str]:
-        """Generate skill briefs focused on the specific question, with learnings from previous iterations."""
         # Add learnings context if available
         learnings_section = ""
         if learnings.strip():
@@ -119,7 +111,7 @@ class Explorer:
             return self._generate_generic_briefs(steps, task_class)
 
     def _generate_generic_briefs(self, steps: list[str], task_class: str) -> dict[str, str]:
-        """Generate generic skill briefs for the domain."""
+
         briefs = {}
         for step in steps:
             if step == "explore":
@@ -147,7 +139,7 @@ class Explorer:
         return briefs
 
     def _get_approach_summary(self, task_class: str) -> str:
-        """Get approach summary from web evidence."""
+
         prompt = (
             f"You are a {task_class} expert. In 2-3 sentences, describe the core approach "
             "and mindset needed for high-quality work in this domain."

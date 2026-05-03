@@ -160,7 +160,6 @@ class Architect:
         )
 
     def _fallback_plan(self, exploration: ExplorerResult) -> ArchitecturePlan:
-        """Deterministički fallback ako LLM vrati invalid JSON."""
         steps = exploration.recommended_pipeline_steps or ["answer"]
         skill_specs = {
             step: {

@@ -47,7 +47,7 @@ def _chat_loop(
     baseline_config_path: str | None = None,
     domain_filter: str | None = None,
 ) -> bool:
-    """Returns True if app should exit, False to go back."""
+
     agent = Agent(config_path)
     print("\nYou can now ask multiple questions. Commands: /back, /exit, /benchmark")
     while True:
