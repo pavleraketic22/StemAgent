@@ -40,6 +40,7 @@ Enter question: what is RAG
 ### Commands (in execute mode)
 
 - `/benchmark` - Run baseline vs specialized comparison
+- **IMPORTANT: BENCHMARK IS AUTOMATICALLY BEING RUN DURING SPECIALIZATION SO THERE IS NOW NEED TO RUN IT AGAIN**
 - `/back` - Return to menu
 - `/exit` - Exit
 
